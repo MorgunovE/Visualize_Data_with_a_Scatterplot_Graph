@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Scatterplot Graph</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      background-color: #f5f5f5;
+    }
+
+    .container {
+      background-color: white;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+      padding: 20px;
+      border-radius: 5px;
+    }
+
+    #title {
+      text-align: center;
+      font-size: 24px;
+      margin-bottom: 5px;
+    }
+
+    #subtitle {
+      text-align: center;
+      font-size: 18px;
+      margin-top: 0;
+      color: #666;
+    }
+
+    .dot {
+      stroke-width: 1;
+      stroke: black;
+    }
+
+    #tooltip {
+      position: absolute;
+      background-color: rgba(255, 255, 255, 0.9);
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      padding: 10px;
+      pointer-events: none;
+      opacity: 0;
+      font-size: 14px;
+      max-width: 220px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1 id="title">Doping in Professional Bicycle Racing</h1>
+    <h2 id="subtitle">35 Fastest times up Alpe d'Huez</h2>
+    <div id="chart"></div>
+  </div>
+
+  <script>
+
+    // Fetch the data and create the visualization
+    document.addEventListener('DOMContentLoaded', function() {
+      fetch('https://raw.githubusercontent.com/freeCodeCamp/ProjectReferenceData/master/cyclist-data.json')
+              .then(response => response.json())
+              .then(data => {
+
+
+
+      // Set up dimensions and margins
+      const margin = { top: 80, right: 100, bottom: 80, left: 80 };
+      const width = 800 - margin.left - margin.right;
+      const height = 600 - margin.top - margin.bottom;
+
+      // Parse the data
+      data.forEach(d => {
+        const parsedTime = d.Time.split(':');
+        d.TimeObject = new Date(1970, 0, 1, 0, parsedTime[0], parsedTime[1]);
+      });
+
+      // Set up scales
+      const xScale = d3.scaleLinear()
+        .domain([d3.min(data, d => d.Year - 1), d3.max(data, d => d.Year + 1)])
+        .range([0, width]);
+
+      const yScale = d3.scaleTime()
+        .domain([
+          d3.max(data, d => d.TimeObject),  // Slower times at bottom
+          d3.min(data, d => d.TimeObject)   // Faster times at top
+        ])
+        .range([height, 0]);
+
+      // Create SVG container
+      const svg = d3.select('#chart')
+        .append('svg')
+        .attr('width', width + margin.left + margin.right)
+        .attr('height', height + margin.top + margin.bottom)
+        .append('g')
+        .attr('transform', `translate(${margin.left}, ${margin.top})`);
+
+      // Create axes
+      const xAxis = d3.axisBottom(xScale)
+        .tickFormat(d3.format('d'));
+
+      const yAxis = d3.axisLeft(yScale)
+        .tickFormat(d3.timeFormat('%M:%S'));
+
+      svg.append('g')
+        .attr('id', 'x-axis')
+        .attr('transform', `translate(0, ${height})`)
+        .call(xAxis);
+
+      svg.append('g')
+        .attr('id', 'y-axis')
+        .call(yAxis);
+
+      // Add axis labels
+      svg.append('text')
+        .attr('text-anchor', 'middle')
+        .attr('x', width / 2)
+        .attr('y', height + 40)
+        .text('Year');
+
+      svg.append('text')
+        .attr('text-anchor', 'middle')
+        .attr('transform', 'rotate(-90)')
+        .attr('x', -height / 2)
+        .attr('y', -40)
+        .text('Time (minutes:seconds)');
+
+      // Create tooltip
+      const tooltip = d3.select('body')
+        .append('div')
+        .attr('id', 'tooltip')
+        .style('opacity', 0);
+
+      // Create legend
+      const legend = svg.append('g')
+        .attr('id', 'legend')
+        .attr('transform', `translate(${width - 200}, ${height / 4})`);
+
+      legend.append('rect')
+        .attr('width', 18)
+        .attr('height', 18)
+        .attr('fill', 'red')
+        .attr('opacity', 0.7);
+
+      legend.append('text')
+        .attr('x', 24)
+        .attr('y', 9)
+        .attr('dy', '0.35em')
+        .text('Riders with doping allegations');
+
+      legend.append('rect')
+        .attr('width', 18)
+        .attr('height', 18)
+        .attr('y', 30)
+        .attr('fill', 'green')
+        .attr('opacity', 0.7);
+
+      legend.append('text')
+        .attr('x', 24)
+        .attr('y', 39)
+        .attr('dy', '0.35em')
+        .text('No doping allegations');
+
+      // Add data points (dots)
+      svg.selectAll('.dot')
+        .data(data)
+        .enter()
+        .append('circle')
+        .attr('class', 'dot')
+        .attr('cx', d => xScale(d.Year))
+        .attr('cy', d => yScale(d.TimeObject))
+        .attr('r', 6)
+        .attr('data-xvalue', d => d.Year)
+        .attr('data-yvalue', d => d.TimeObject.toISOString())
+        .attr('fill', d => d.Doping ? 'red' : 'green')
+        .attr('opacity', 0.7)
+        .on('mouseover', function(event, d) {
+          tooltip
+            .style('opacity', 0.9)
+            .attr('data-year', d.Year)
+            .html(`
+              <strong>${d.Name}: ${d.Nationality}</strong><br>
+              Year: ${d.Year}, Time: ${d.Time}<br>
+              ${d.Doping ? `<br>${d.Doping}` : 'No doping allegations'}
+            `)
+            .style('left', (event.pageX + 10) + 'px')
+            .style('top', (event.pageY - 28) + 'px');
+        })
+        .on('mouseout', function() {
+          tooltip.style('opacity', 0);
+        });
+              })
+              .catch(error => {
+                console.error('Error fetching the dataset:', error);
+              });
+    });
+  </script>
+</body>
+</html>
